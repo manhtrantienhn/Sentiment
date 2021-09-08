@@ -203,8 +203,8 @@ class SentimentModel(nn.Module):
         for i in range(1, res_len):
             output_revert, h1, h2 = self.decoder1(x1=input_, output1_encoder=output1, h1_encoder=h1, x2=input_, output2_encoder=output2, h2_encoder=h2)
 
-            output_revert = self.ReLU(self.T(output_revert))
-            output_revert = self.Z1(self.relu(output_revert))
+            output_revert = self.relu(self.T(output_revert))
+            output_revert = self.Z1(output_revert)
 
             output_reverts[i] = output_revert
             teacher_force = random.random() < teacher_forcing_ratio
@@ -218,8 +218,8 @@ class SentimentModel(nn.Module):
         for i in range(1, mask_len):
             output_mask, h1, h2 = self.decoder2(x1=input_, output1_encoder=output1, h1_encoder=h1, x2=input_, output2_encoder=output2, h2_encoder=h2)
 
-            output_mask = self.ReLU(self.T(output_mask))
-            output_mask = self.Z2(self.relu(output_mask))
+            output_mask = self.relu(self.T(output_mask))
+            output_mask = self.Z2(output_mask)
 
             output_masks[i] = output_mask
             teacher_force1 = random.random() < teacher_forcing_ratio
