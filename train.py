@@ -48,7 +48,7 @@ def initialize_model(top_s_r_embedding, bot_s_r_embedding, top_m_embedding, bot_
     return model, criterion, optimizer, scheduler
 
 def step(model, criterion, optimizer, scheduler, batch, device):
-    origin, res, mask = tuple(t.to(device) for t in batch)
+    origin, res, mask = batch
 
     optimizer.zero_grad()
     
@@ -78,7 +78,7 @@ def validate(model, criterion, val_iterator, device, teacher_forcing_ratio=0.0):
     with torch.no_grad():
         for batch in val_iterator:
             # revert_preds, revert_targets, mask_preds, mask_targets = list(), list(), list(), list()
-            origin, res, mask = tuple(t.to(device) for t in batch)
+            origin, res, mask = batch
 
             output_reverts, output_masks = model(top_source=origin, bot_source=origin, top_res=res, top_mask=mask, teacher_forcing_ratio=teacher_forcing_ratio)
 
@@ -188,7 +188,7 @@ def main():
     set_seed()
     print('reading dataset...')
     train_loader, val_loader, w2idx, _, fwe, fmwe, swe, smwe = create_data_loader(train_dataset=TRAIN_PATH, valid_dataset=VAL_PATH,
-                                                                                  batch_size=BATCH_SIZE, origin_max_len=OR_MAX_LENGTH, 
+                                                                                  batch_size=BATCH_SIZE, device=DEVICE, origin_max_len=OR_MAX_LENGTH, 
                                                                                   mask_max_len=MASK_MAX_LENGTH, fasttext_vec=FASTTEXT_VEC,
                                                                                   fasttext_mask_vec=FASTTEXT_MASK_VEC, stm_vec=STM_VEC,
                                                                                   stm_mask_vec=STM_MASK_VEC)

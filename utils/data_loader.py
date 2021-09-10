@@ -37,7 +37,7 @@ def pad_and_truncate_seqs(seqs, max_seq_len, pad_idx, sos_idx, eos_idx):
             seq_pads[i] =  [sos_idx] + seq[:max_seq_len - 2] + [eos_idx]
     return seq_pads
 
-def create_data_loader(train_dataset, valid_dataset, batch_size,
+def create_data_loader(train_dataset, valid_dataset, batch_size, device,
                        origin_max_len=39,
                        mask_max_len=15,
                        fasttext_vec='./data/fasttext.vec',
@@ -78,10 +78,10 @@ def create_data_loader(train_dataset, valid_dataset, batch_size,
     restr_val_pad = pad_and_truncate_seqs(restr_val, origin_max_len, pad_idx, sos_idx, eos_idx)
     mask_val_pad = pad_and_truncate_seqs(mask_val, mask_max_len, pad_idx, sos_idx, eos_idx)
     
-    train_tensor = TensorDataset(torch.tensor(origin_train_pad, dtype=torch.long), torch.tensor(restr_train_pad, dtype=torch.long), torch.tensor(mask_train_pad, dtype=torch.long))
+    train_tensor = TensorDataset(torch.tensor(origin_train_pad, dtype=torch.long).to(device), torch.tensor(restr_train_pad, dtype=torch.long).to(device), torch.tensor(mask_train_pad, dtype=torch.long).to(device))
     train_loader = DataLoader(train_tensor, batch_size=batch_size, shuffle=True)
 
-    val_tensor = TensorDataset(torch.tensor(origin_val_pad, dtype=torch.long), torch.tensor(restr_val_pad, dtype=torch.long), torch.tensor(mask_val_pad, dtype=torch.long))
+    val_tensor = TensorDataset(torch.tensor(origin_val_pad, dtype=torch.long).to(device), torch.tensor(restr_val_pad, dtype=torch.long).to(device), torch.tensor(mask_val_pad, dtype=torch.long).to(device))
     val_loader = DataLoader(val_tensor, batch_size=batch_size, shuffle=False)
 
     return train_loader, val_loader, w2idx, mask_w2idx, fasttext_word_embedding, fasttext_mask_word_embedding, sentiment_word_embedding, sentiment_mask_word_embedding
