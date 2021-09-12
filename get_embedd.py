@@ -9,9 +9,9 @@ from torch.utils.data import TensorDataset, DataLoader
 nltk.download('punkt')
 import argparse
 import os
-from transformers import AutoTokenizer
+from torchtext.vocab import Vectors
 from utils.model import *
-from utils.data_loader import pad_and_truncate_seqs, create_vocab, read_data, text_to_seq
+from utils.data_loader import pad_and_truncate_seqs, read_data, text_to_seq
 from train import initialize_model
 
 def set_seed(seed=42):
@@ -22,32 +22,39 @@ def set_seed(seed=42):
     torch.backends.cudnn.deterministic = True
     print(f'using seed: %d' %(seed))
 
-def create_data_loader(train_dataset, test_dataset, batch_size, origin_max_len, test_max_len=50):
-    tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
+
+def create_data_loader(train_dataset, test_dataset, batch_size, device,
+                       origin_max_len=39,
+                       test_max_len=50,
+                       fasttext_vec='./data/fasttext.vec'):
 
     print('reading datasets...')
     train_data, test_data = read_data(train_dataset, test_dataset)
 
+    # load word embedding from *.vec
+    fasttext_word_embedding = Vectors(fasttext_vec, cache='./')
+
     print('creating vocab...')
-    origin_w2idx, origin_idx2w, mask_w2idx, _, sos_idx, eos_idx, pad_idx, unk_idx = create_vocab(train_data)
+    w2idx = fasttext_word_embedding.stoi
+    sos_idx, eos_idx, pad_idx, unk_idx = w2idx['<sos>'], w2idx['<eos>'], w2idx['<pad>'], w2idx['<unk>']
 
     print('convert text to sequence...')
-    origin_train = text_to_seq(train_data['origin'], origin_w2idx, unk_idx)
-    test_seqs = text_to_seq(test_data['text'], origin_w2idx, unk_idx)
+    origin_train = text_to_seq(train_data['origin'], w2idx, unk_idx)
+
+    test_seqs = text_to_seq(test_data['text'], w2idx, unk_idx)
 
     print('padding and truncating seq...')
     train_pads = pad_and_truncate_seqs(origin_train, origin_max_len, pad_idx, sos_idx, eos_idx)
     test_pads = pad_and_truncate_seqs(test_seqs, test_max_len, pad_idx, sos_idx, eos_idx)
     
-    test_token = tokenizer.batch_encode_plus(test_data['text'], padding=True, truncation=True, max_length=test_max_len, return_tensors='pt')
-    train_token = tokenizer.batch_encode_plus(train_data['origin'], padding=True, truncation=True, max_length=origin_max_len, return_tensors='pt')
-
-    train_tensor = TensorDataset(torch.tensor(train_pads, dtype=torch.long), train_token['input_ids'], train_token['attention_mask'])
+    train_tensor = TensorDataset(torch.tensor(train_pads, dtype=torch.long).to(device))
     train_loader = DataLoader(train_tensor, batch_size=batch_size, shuffle=True)
 
-    test_tensor = TensorDataset(torch.tensor(test_pads, dtype=torch.long), test_token['input_ids'], test_token['attention_mask'])
+    test_tensor = TensorDataset(torch.tensor(test_pads, dtype=torch.long).to(device))
     test_loader = DataLoader(test_tensor, batch_size=batch_size, shuffle=False)
-    return train_loader, test_loader, origin_w2idx, origin_idx2w, mask_w2idx
+
+    return train_loader, test_loader, w2idx
+
 
 def main():
     parser = argparse.ArgumentParser(description='Sentiment Model')
@@ -68,10 +75,14 @@ def main():
     config_file = os.path.join(checkpoint_path, 'config.pth')
     print('load config from: ', config_file)
     config = torch.load(config_file)
+    
+    fwe = config['top_s_r_embedding']
+    swe = config['bot_s_r_embedding']
+    fmwe = config['top_m_embedding']
+    smwe = config['bot_m_embedding']
     BATCH_SIZE = config['batch_size']
     OR_MAX_LENGTH = config['origin_max_len']
     HIDDEN_SIZE = config['hidden_size']
-    EMBEDD_DIM = config['embedding_dim']
     NUM_ASPECT = config['num_aspect']
     IGNORE_INDEX = config['ignore_index']
     LR = config['lr']
@@ -80,30 +91,27 @@ def main():
 
 
     print('reading dataset...')
-    train_loader, test_loader, origin_w2idx, origin_idx2w, mask_w2idx = create_data_loader(train_dataset=TRAIN_PATH, test_dataset=TEST_PATH, batch_size=BATCH_SIZE,
-                                                                            origin_max_len=OR_MAX_LENGTH, test_max_len=50)
+    train_loader, test_loader, w2idx = create_data_loader(train_dataset=TRAIN_PATH, test_dataset=TEST_PATH, batch_size=BATCH_SIZE, device=DEVICE,
+                                                                                           origin_max_len=OR_MAX_LENGTH, test_max_len=50, fasttext_vec='./data/fasttext.vec')
 
     w2idx_path = os.path.join(checkpoint_path, 'w2idx.json')                                                            
     print('saving corpus w2idx to: ', w2idx_path)
     with open(w2idx_path, 'w+') as f:
-        json.dump(origin_w2idx, f, indent=4)
+        json.dump(w2idx, f, indent=4)
 
-    idx2w_path = os.path.join(checkpoint_path, 'w2idx.json')
+    idx2w_path = os.path.join(checkpoint_path, 'idx2w.json')
     print('saving corpus idx2w to: ', idx2w_path)
+    idx2w = {idx:w for w, idx in w2idx.items()}
     with open(idx2w_path, 'w+') as f:
-        json.dump(origin_idx2w, f, indent=4)
+        json.dump(idx2w, f, indent=4)
 
     print('initializing model...')
-    model, _, _, _ = initialize_model(origin_vocab=len(origin_w2idx),
-                                    restr_vocab=len(origin_w2idx),
-                                    mask_vocab=len(mask_w2idx),
-                                    hidden_size=HIDDEN_SIZE,
-                                    embedding_dim=EMBEDD_DIM,
-                                    len_train_iter=LEN_TRAIN_ITER,
-                                    num_aspect=NUM_ASPECT, device=DEVICE,
-                                    ignore_index=IGNORE_INDEX,
-                                    epochs=EPOCHS, lr=LR)
-
+    model, _, _, _ = initialize_model(top_s_r_embedding=fwe, bot_s_r_embedding=swe, 
+                                      top_m_embedding=fmwe, bot_m_embedding=smwe, 
+                                      hidden_size=HIDDEN_SIZE, len_train_iter=LEN_TRAIN_ITER, 
+                                      num_aspect=NUM_ASPECT, device=DEVICE, 
+                                      ignore_index=IGNORE_INDEX, 
+                                      epochs=EPOCHS, lr=LR)
 
     print('loading checkpoint from: ', CHECK_POINT)
     checkpoint = torch.load(CHECK_POINT)
@@ -111,7 +119,7 @@ def main():
     encoder = model.encoder
 
     print('compute average word embedding of each token in vocab...')
-    w2e = {i:[w, 1] for i, w in origin_idx2w.items()}
+    w2e = {i:[w, 1] for i, w in idx2w.items()}
     with torch.no_grad():
         for _, batch in enumerate(train_loader):
             x, input_ids, attention_mask = tuple(t.to(DEVICE) for t in batch)
@@ -128,7 +136,6 @@ def main():
     print('saving word to embedding to: ', os.path.join(checkpoint_path, 'w2e.json'))
     with open(os.path.join(checkpoint_path, 'w2e.json'), 'w+') as f:
         json.dump(w2embedd, f)
-    # torch.save(w2e, os.path.join(checkpoint_path, 'w2e.pt'))
 
     sentence_embs = []
     with torch.no_grad():
@@ -140,7 +147,6 @@ def main():
 
             sentence_embs.extend[sentence_emb]
     
-    # sentence_embs = {i:emb for i, emb in enumerate(sentence_embs)}
     print('saving sentences embedding to: ', os.path.join(checkpoint_path, 'sent_embedd.json'))
     with open(os.path.join(checkpoint_path, 'sent_embedd.json'), 'w+') as f:
         json.dump({'embedd':sentence_embs}, f)
@@ -148,16 +154,6 @@ def main():
     
     print('saving matrix T to: ', os.path.join(checkpoint_path, 'T.txt'))
     np.savetxt(os.path.join(checkpoint_path, 'T.txt'), model.T.weight.detach().numpy())
-
-    # print('saving weight of matrix T to: ', os.path.join(checkpoint_path, 'T.pt'))
-    # torch.save({'T': model.T}, os.path.join(checkpoint_path, 'T.pt'))
-
-    # print('Val loss: {}'.format(checkpoint['val_loss']))
-
-    # validate model
-    # print('Testing model...')
-    # test_loss = validate(model, criterion, test_loader, DEVICE)
-    # print("Test loss: {}".format(test_loss))
 
 if __name__ == '__main__':
     main()

@@ -209,7 +209,7 @@ def main():
         'batch_size': BATCH_SIZE, 'origin_max_len': OR_MAX_LENGTH, 'mask_max_len': MASK_MAX_LENGTH,
         'epoch': EPOCHS, 'hidden_size':HIDDEN_SIZE, 'len_train_iter': len(train_loader),
         'num_aspect':NUM_ASPECT, 'ignore_index': w2idx['<pad>'], 'lr':LR
-        }, os.path.join(CHECK_POINT, 'config.pth'))
+        }, os.path.join(CHECK_POINT, 'config.pt'))
 
     print('training model...')
     train(model=model, criterion=criterion, optimizer=optimizer, scheduler=scheduler, train_iterator=train_loader,
