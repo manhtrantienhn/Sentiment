@@ -87,7 +87,7 @@ def main():
     IGNORE_INDEX = config['ignore_index']
     LR = config['lr']
     LEN_TRAIN_ITER = config['len_train_iter']
-    EPOCHS = config['epochs']
+    EPOCHS = config['epoch']
 
 
     print('reading dataset...')
@@ -119,40 +119,38 @@ def main():
     encoder = model.encoder
 
     print('compute average word embedding of each token in vocab...')
-    w2e = {i:[w, 1] for i, w in idx2w.items()}
+    w2e = {i:[0, 1] for i, w in idx2w.items()}
     with torch.no_grad():
         for batch in train_loader:
-
-            (output1, _), (output2, _) = encoder(batch, batch)
-
-            output = torch.cat((output1, output2), dim=2) # [batch_size, seq_len, 1600]
-            for row in batch:
-                for i in row:
-                    if i in w2e:
-                        w2e[i][0] += output[row, i].detach().cpu().numpy()
-                        w2e[i][1] += 1
+            x = batch[0]
+            (output1, _), (output2, _) = encoder(x, x)
+            output = torch.cat((output1, output2), dim=2).detach().cpu().numpy() # [batch_size, seq_len, 1600]
+            x1 = x.detach().cpu().numpy()
+            for idx, row in enumerate(x1):
+                for i, j in enumerate(row):
+                    if j in w2e:
+                        w2e[j][0] += output[idx, i]
+                        w2e[j][1] += 1
     
     w2embedd = {i:list(w[0]/w[1]) for i, w in w2e}
-    print('saving word to embedding to: ', os.path.join(checkpoint_path, 'w2e.json'))
-    with open(os.path.join(checkpoint_path, 'w2e.json'), 'w+') as f:
-        json.dump(w2embedd, f)
+    print('saving word to embedding to: ', os.path.join(checkpoint_path, 'idx2e.pt'))
+    torch.save(w2embedd, os.path.join(checkpoint_path, 'idx2e.pt'))
 
     sentence_embs = []
     with torch.no_grad():
         for batch in test_loader:
-
-            (output1, _), (output2, _) = encoder(batch, batch)
+            x = batch[0]
+            (output1, _), (output2, _) = encoder(x, x)
             sentence_emb = torch.cat((output1, output2), dim=2)[:, -1].detach().cpu().numpy() # [batch_size, seq_len, 1600]
 
-            sentence_embs.extend[sentence_emb]
-    
-    print('saving sentences embedding to: ', os.path.join(checkpoint_path, 'sent_embedd.json'))
-    with open(os.path.join(checkpoint_path, 'sent_embedd.json'), 'w+') as f:
-        json.dump({'embedd':sentence_embs}, f)
+            sentence_embs.extend(sentence_emb)
 
-    
-    print('saving matrix T to: ', os.path.join(checkpoint_path, 'T.txt'))
-    np.savetxt(os.path.join(checkpoint_path, 'T.txt'), model.T.weight.detach().numpy())
+    print('saving sentences embedding to: ', os.path.join(checkpoint_path, 'sent_embedd.pt'))
+    torch.save(sentence_embs, os.path.join(checkpoint_path, 'sent_embedd.pt'))
+
+
+    print('saving matrix T to: ', os.path.join(checkpoint_path, 'T.pt'))
+    torch.save(model.T.weight.detach().cpu().numpy(), os.path.join(checkpoint_path, 'T.pt'))
 
 if __name__ == '__main__':
     main()
