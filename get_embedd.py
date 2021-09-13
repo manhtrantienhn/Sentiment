@@ -121,12 +121,12 @@ def main():
     print('compute average word embedding of each token in vocab...')
     w2e = {i:[w, 1] for i, w in idx2w.items()}
     with torch.no_grad():
-        for _, batch in enumerate(train_loader):
-            x, input_ids, attention_mask = tuple(t.to(DEVICE) for t in batch)
+        for batch in train_loader:
 
-            (output1, _), (output2, _) = encoder(input_ids, attention_mask, x)
+            (output1, _), (output2, _) = encoder(batch, batch)
+
             output = torch.cat((output1, output2), dim=2) # [batch_size, seq_len, 1600]
-            for row in x:
+            for row in batch:
                 for i in row:
                     if i in w2e:
                         w2e[i][0] += output[row, i].detach().cpu().numpy()
@@ -139,10 +139,9 @@ def main():
 
     sentence_embs = []
     with torch.no_grad():
-        for _, batch in enumerate(test_loader):
-            x, input_ids, attention_mask = tuple(t.to(DEVICE) for t in batch)
+        for batch in test_loader:
 
-            (output1, _), (output2, _) = encoder(input_ids, attention_mask, x)
+            (output1, _), (output2, _) = encoder(batch, batch)
             sentence_emb = torch.cat((output1, output2), dim=2)[:, -1].detach().cpu().numpy() # [batch_size, seq_len, 1600]
 
             sentence_embs.extend[sentence_emb]
