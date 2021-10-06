@@ -24,7 +24,7 @@
 For training, you can run commands like this:
 
 ```shell
-python3 train.py --train_dataset ./data/train.json --val_dataset ./data/val.json --batch_size 256 --epochs 20 --hidden_size 400 --checkpoint ./checkpoint/ --lr 5e-3 --num_aspect 14 --patience 5 --delta 1e-6 --fasttext_vec ./data/fasttext.vec --fasttext_mask_vec ./data/fasttext_mask.vec --stm_vec ./data/stm.vec --stm_mask_vec ./data/stm_mask.vec
+python3 train.py --train_dataset ./data/train.json --val_dataset ./data/val.json --batch_size 256 --epochs 20 --hidden_size 400 --checkpoint ./checkpoint/ --lr 5e-3 --num_aspect 14 --patience 5 --delta 1e-6 --fasttext_vec ./data/fasttext.vec --fasttext_mask_vec ./data/fasttext_mask.vec --bot_embedd_dim 300
 ```
 
 ## Test

@@ -1,6 +1,5 @@
 import json
 import numpy as np
-# import torchtext
 from torchtext.vocab import Vectors
 from tqdm import tqdm
 import torch
@@ -41,9 +40,7 @@ def create_data_loader(train_dataset, valid_dataset, batch_size, device,
                        origin_max_len=39,
                        mask_max_len=15,
                        fasttext_vec='./data/fasttext.vec',
-                       fasttext_mask_vec='./data/fasttext_mask.vec',
-                       stm_vec='./data/stm.vec',
-                       stm_mask_vec='./data/stm_mask.vec'):
+                       fasttext_mask_vec='./data/fasttext_mask.vec'):
 
     print('reading datasets...')
     train_data, val_data = read_data(train_dataset, valid_dataset)
@@ -52,8 +49,8 @@ def create_data_loader(train_dataset, valid_dataset, batch_size, device,
     print('loading word embedding..')
     fasttext_word_embedding = Vectors(fasttext_vec, cache='./')
     fasttext_mask_word_embedding = Vectors(fasttext_mask_vec, cache='./')
-    sentiment_word_embedding = Vectors(stm_vec, cache='./')
-    sentiment_mask_word_embedding = Vectors(stm_mask_vec, cache='./')
+    # sentiment_word_embedding = Vectors(stm_vec, cache='./')
+    # sentiment_mask_word_embedding = Vectors(stm_mask_vec, cache='./')
 
     print('creating vocab...')
     w2idx = fasttext_word_embedding.stoi
@@ -84,4 +81,4 @@ def create_data_loader(train_dataset, valid_dataset, batch_size, device,
     val_tensor = TensorDataset(torch.tensor(origin_val_pad, dtype=torch.long).to(device), torch.tensor(restr_val_pad, dtype=torch.long).to(device), torch.tensor(mask_val_pad, dtype=torch.long).to(device))
     val_loader = DataLoader(val_tensor, batch_size=batch_size, shuffle=False)
 
-    return train_loader, val_loader, w2idx, mask_w2idx, fasttext_word_embedding, fasttext_mask_word_embedding, sentiment_word_embedding, sentiment_mask_word_embedding
+    return train_loader, val_loader, w2idx, mask_w2idx, fasttext_word_embedding, fasttext_mask_word_embedding

@@ -4,14 +4,13 @@ import torch
 from torch import Tensor
 from typing import Tuple
 import torch.nn as nn
-from transformers import AutoModel
 import torch.nn.functional as F
 
 """
 - DATA: we split each docs to 2 parts: 75% and 25%
 - Model: we formulate this problem as seq2seq and mask prediction task, model consist of 2 components: encoder and decoder
     + Encoder, we use 2 bi-gru for learning local and global features
-    + Decoder has 2 parts: the first reconstruct invert 75% docs (.i.e from token T to 0), the rest will be mask prediction with 50%
+    + Decoder has 2 parts: the first reconstruct invert 75% docs (.i.e from token `t` to 0), the rest will be mask prediction with 50%
 """
 
 
@@ -20,7 +19,7 @@ class Encoder(nn.Module):
                  hidden_size,
                  device,
                  weight_top_embedding,
-                 weight_bot_embedding,
+                 bot_embedd_dim=300,
                  num_layers=2,
                  bidirectional=True,
                  p=0.2,
@@ -34,14 +33,14 @@ class Encoder(nn.Module):
         self.bidirectional = bidirectional
         self.device = device
         self.top_embedd_layer = nn.Embedding.from_pretrained(embeddings=weight_top_embedding.vectors)
-        self.bot_embedd_layer = nn.Embedding.from_pretrained(embeddings=weight_bot_embedding.vectors)
+        self.bot_embedd_layer = nn.Embedding(embedding_dim=bot_embedd_dim, num_embeddings=weight_top_embedding.vectors.size(0))
         
         # the first rnn to learning sentiment text, using sentiment word embedding
         self.rnn1 = nn.GRU(input_size=weight_top_embedding.dim, hidden_size=hidden_size, num_layers=num_layers,
                            dropout=p, bidirectional=bidirectional, batch_first=batch_first)
 
         # the second rnn to learning global represent of text, using fasttex
-        self.rnn2 = nn.GRU(input_size=weight_bot_embedding.dim, hidden_size=hidden_size, num_layers=num_layers,
+        self.rnn2 = nn.GRU(input_size=bot_embedd_dim, hidden_size=hidden_size, num_layers=num_layers,
                            dropout=p, bidirectional=bidirectional, batch_first=batch_first)
 
         self.dropout = nn.Dropout(p)
@@ -110,8 +109,8 @@ class Decoder(nn.Module):
     def __init__(self, 
                  hidden_size,
                  weight_top_embedding,
-                 weight_bot_embedding,
                  encoder_output_dim,
+                 bot_embedd_dim=300,
                  num_layers=2,
                  bidirectional=True,
                  p=0.2,
@@ -126,12 +125,12 @@ class Decoder(nn.Module):
         self.vocab_size = weight_top_embedding.vectors.size(0)
 
         self.top_embedd_layer = nn.Embedding.from_pretrained(embeddings=weight_top_embedding.vectors)
-        self.bot_embedd_layer = nn.Embedding.from_pretrained(embeddings=weight_bot_embedding.vectors)
+        self.bot_embedd_layer = nn.Embedding(num_embeddings=weight_top_embedding.vectors.size(0), embedding_dim=bot_embedd_dim)
 
         self.rnn1 = nn.GRU(input_size=weight_top_embedding.dim, hidden_size=hidden_size, num_layers=num_layers,
                            dropout=p, bidirectional=bidirectional, batch_first=batch_first)
 
-        self.rnn2 = nn.GRU(input_size=weight_bot_embedding.dim, hidden_size=hidden_size, num_layers=num_layers,
+        self.rnn2 = nn.GRU(input_size=bot_embedd_dim, hidden_size=hidden_size, num_layers=num_layers,
                            dropout=p, bidirectional=bidirectional, batch_first=batch_first)
         
         self.dropout = nn.Dropout(p)

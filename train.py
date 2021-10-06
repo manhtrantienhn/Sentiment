@@ -21,21 +21,21 @@ def set_seed(seed=42):
     torch.backends.cudnn.deterministic = True
     print(f'using seed: %d' %(seed))
 
-def initialize_model(top_s_r_embedding, bot_s_r_embedding, top_m_embedding, bot_m_embedding, hidden_size, len_train_iter, num_aspect, device, ignore_index, epochs=20, lr=3e-5):
+def initialize_model(top_s_r_embedding, top_m_embedding, bot_embedd_dim, hidden_size, len_train_iter, num_aspect, device, ignore_index, epochs=20, lr=3e-5):
 
     encoder = Encoder(hidden_size=hidden_size,
                       device=device,
                       weight_top_embedding=top_s_r_embedding,
-                      weight_bot_embedding=bot_s_r_embedding)
+                      bot_embedd_dim=bot_embedd_dim)
 
     decoder1 = Decoder(hidden_size=hidden_size,
                        weight_top_embedding=top_s_r_embedding,
-                       weight_bot_embedding=bot_s_r_embedding,
+                       bot_embedd_dim=bot_embedd_dim,
                        encoder_output_dim=(encoder.hidden_size*encoder.D))
     
     decoder2 = Decoder(hidden_size=hidden_size,
                        weight_top_embedding=top_m_embedding,
-                       weight_bot_embedding=bot_m_embedding,
+                       bot_embedd_dim=bot_embedd_dim,
                        encoder_output_dim=(encoder.hidden_size*encoder.D))
     
     model = SentimentModel(encoder=encoder, decoder1=decoder1, decoder2=decoder2, num_aspect=num_aspect).to(device)
@@ -162,8 +162,7 @@ def main():
     parser.add_argument('--delta', type=float, default=1e-6, help='delta using in early stopping')
     parser.add_argument('--fasttext_vec', type=str, default='./data/fasttext.vec')
     parser.add_argument('--fasttext_mask_vec', type=str, default='./data/fasttext_mask.vec')
-    parser.add_argument('--stm_vec', type=str, default='./data/stm.vec')
-    parser.add_argument('--stm_mask_vec', type=str, default='./data/stm_mask.vec')
+    parser.add_argument('--bot_embedd_dim', type=int, default=300, help="Embedding dim in bottom phases of model")
 
     args = parser.parse_args()
 
@@ -181,23 +180,21 @@ def main():
     DELTA = args.delta
     FASTTEXT_VEC = args.fasttext_vec
     FASTTEXT_MASK_VEC = args.fasttext_mask_vec
-    STM_VEC = args.stm_vec
-    STM_MASK_VEC = args.stm_mask_vec
+    BOT_EMBEDD_DIM = args.bot_embedd_dim
     DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     set_seed()
     print('reading dataset...')
-    train_loader, val_loader, w2idx, _, fwe, fmwe, swe, smwe = create_data_loader(train_dataset=TRAIN_PATH, valid_dataset=VAL_PATH,
-                                                                                  batch_size=BATCH_SIZE, device=DEVICE, origin_max_len=OR_MAX_LENGTH, 
-                                                                                  mask_max_len=MASK_MAX_LENGTH, fasttext_vec=FASTTEXT_VEC,
-                                                                                  fasttext_mask_vec=FASTTEXT_MASK_VEC, stm_vec=STM_VEC,
-                                                                                  stm_mask_vec=STM_MASK_VEC)
+    
+    train_loader, val_loader, w2idx, _, fwe, fmwe = create_data_loader(train_dataset=TRAIN_PATH, valid_dataset=VAL_PATH,
+                                                                        batch_size=BATCH_SIZE, device=DEVICE, origin_max_len=OR_MAX_LENGTH, 
+                                                                        mask_max_len=MASK_MAX_LENGTH, fasttext_vec=FASTTEXT_VEC,
+                                                                        fasttext_mask_vec=FASTTEXT_MASK_VEC)
     # fwe: fasttext word embedding, fmwe: fasttext mask word embedding
     # swe: sentiment word embedding, smwe: sentiment mask word embedding
 
     print('initializing model...')
-    model, criterion, optimizer, scheduler = initialize_model(top_s_r_embedding=fwe, bot_s_r_embedding=swe, 
-                                                              top_m_embedding=fmwe, bot_m_embedding=smwe, 
+    model, criterion, optimizer, scheduler = initialize_model(top_s_r_embedding=fwe, top_m_embedding=fmwe, bot_embedd_dim=BOT_EMBEDD_DIM, 
                                                               hidden_size=HIDDEN_SIZE, len_train_iter=len(train_loader), 
                                                               num_aspect=NUM_ASPECT, device=DEVICE, 
                                                               ignore_index=w2idx['<pad>'], 
@@ -205,7 +202,7 @@ def main():
 
     print('saving model config to: ', os.path.join(CHECK_POINT, 'config.pt'))
     torch.save({
-        'top_s_r_embedding': fwe, 'bot_s_r_embedding': swe, 'top_m_embedding': fmwe, 'bot_m_embedding': smwe,
+        'top_s_r_embedding': fwe, 'top_m_embedding': fmwe, 'bot_embedd_dim': BOT_EMBEDD_DIM,
         'batch_size': BATCH_SIZE, 'origin_max_len': OR_MAX_LENGTH, 'mask_max_len': MASK_MAX_LENGTH,
         'epoch': EPOCHS, 'hidden_size':HIDDEN_SIZE, 'len_train_iter': len(train_loader),
         'num_aspect':NUM_ASPECT, 'ignore_index': w2idx['<pad>'], 'lr':LR

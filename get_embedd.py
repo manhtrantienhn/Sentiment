@@ -77,9 +77,7 @@ def main():
     config = torch.load(config_file)
     
     fwe = config['top_s_r_embedding']
-    swe = config['bot_s_r_embedding']
     fmwe = config['top_m_embedding']
-    smwe = config['bot_m_embedding']
     BATCH_SIZE = config['batch_size']
     OR_MAX_LENGTH = config['origin_max_len']
     HIDDEN_SIZE = config['hidden_size']
@@ -88,7 +86,7 @@ def main():
     LR = config['lr']
     LEN_TRAIN_ITER = config['len_train_iter']
     EPOCHS = config['epoch']
-
+    BOT_EMBEDD_DIM = config['bot_embedd_dim']
 
     print('reading dataset...')
     train_loader, test_loader, w2idx = create_data_loader(train_dataset=TRAIN_PATH, test_dataset=TEST_PATH, batch_size=BATCH_SIZE, device=DEVICE,
@@ -106,12 +104,9 @@ def main():
         json.dump(idx2w, f, indent=4)
 
     print('initializing model...')
-    model, _, _, _ = initialize_model(top_s_r_embedding=fwe, bot_s_r_embedding=swe, 
-                                      top_m_embedding=fmwe, bot_m_embedding=smwe, 
-                                      hidden_size=HIDDEN_SIZE, len_train_iter=LEN_TRAIN_ITER, 
-                                      num_aspect=NUM_ASPECT, device=DEVICE, 
-                                      ignore_index=IGNORE_INDEX, 
-                                      epochs=EPOCHS, lr=LR)
+    model, _, _, _ = initialize_model(top_s_r_embedding=fwe, top_m_embedding=fmwe, bot_embedd_dim=BOT_EMBEDD_DIM, 
+                                      hidden_size=HIDDEN_SIZE, len_train_iter=LEN_TRAIN_ITER, num_aspect=NUM_ASPECT,
+                                      device=DEVICE, ignore_index=IGNORE_INDEX, epochs=EPOCHS, lr=LR)
 
     print('loading checkpoint from: ', CHECK_POINT)
     checkpoint = torch.load(CHECK_POINT)
